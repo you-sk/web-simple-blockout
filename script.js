@@ -5,7 +5,14 @@ const ctx = canvas.getContext('2d');
 let gameRunning = false;
 let score = 0;
 let lives = 3;
-let gameState = 'ready'; // 'ready', 'playing', 'gameOver', 'gameWin'
+let gameState = 'ready'; // 'ready', 'playing', 'gameOver', 'gameWin', 'stageClear'
+
+// ステージ管理
+let currentStage = 1;
+const maxStages = 10;
+let initialBallSpeedX = 2.5;
+let initialBallSpeedY = -2.5;
+let initialPaddleWidth = 150;
 
 // パドル
 const paddle = {
@@ -13,7 +20,8 @@ const paddle = {
     y: canvas.height - 30,
     width: 150,
     height: 15,
-    speed: 8
+    speed: 8,
+    initialWidth: 150
 };
 
 // ボール
@@ -23,7 +31,9 @@ const ball = {
     radius: 10,
     speedX: 2.5,
     speedY: -2.5,
-    maxSpeed: 8
+    maxSpeed: 8,
+    initialSpeedX: 2.5,
+    initialSpeedY: -2.5
 };
 
 // ブロック
@@ -102,8 +112,14 @@ function createBlocks() {
 function resetBall() {
     ball.x = canvas.width / 2;
     ball.y = paddle.y - 100; // パドルの上方に配置
-    ball.speedX = (Math.random() - 0.5) * 3; // -1.5 から 1.5 の範囲
-    ball.speedY = 2.5; // 下向きに移動（パドルに向かう）
+    
+    // ステージごとに速度を調整（20%ずつ増加）
+    const speedMultiplier = 1 + (currentStage - 1) * 0.2;
+    const baseSpeedX = (Math.random() - 0.5) * 3; // -1.5 から 1.5 の範囲
+    const baseSpeedY = Math.abs(ball.initialSpeedY); // 下向きに移動
+    
+    ball.speedX = baseSpeedX * speedMultiplier;
+    ball.speedY = baseSpeedY * speedMultiplier;
 }
 
 
@@ -224,7 +240,7 @@ function update() {
     
     // 勝利条件
     if (blocks.every(block => !block.visible)) {
-        gameWin();
+        stageClear();
     }
     
     updateDisplay();
@@ -281,10 +297,17 @@ function draw() {
             ctx.fillStyle = '#ffffff';
             ctx.font = '18px Arial';
             ctx.fillText('再開ボタンを押してもう一度プレイ', canvas.width / 2, canvas.height / 2 + 20);
-        } else if (gameState === 'gameWin') {
+        } else if (gameState === 'stageClear') {
             ctx.fillStyle = '#2ecc71';
             ctx.font = 'bold 36px Arial';
-            ctx.fillText('ゲームクリア!', canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillText(`ステージ ${currentStage} クリア!`, canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '18px Arial';
+            ctx.fillText('スペースキーまたはクリックで次のステージへ', canvas.width / 2, canvas.height / 2 + 20);
+        } else if (gameState === 'gameWin') {
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText('全ステージクリア!', canvas.width / 2, canvas.height / 2 - 30);
             ctx.fillStyle = '#ffffff';
             ctx.font = '18px Arial';
             ctx.fillText('おめでとうございます！', canvas.width / 2, canvas.height / 2 + 20);
@@ -304,6 +327,7 @@ function draw() {
 function updateDisplay() {
     document.getElementById('score').textContent = score;
     document.getElementById('lives').textContent = lives;
+    document.getElementById('stage').textContent = currentStage;
 }
 
 // ゲームオーバー
@@ -312,18 +336,51 @@ function gameOver() {
     gameState = 'gameOver';
 }
 
+// ステージクリア
+function stageClear() {
+    gameRunning = false;
+    gameState = 'stageClear';
+    
+    // 最終ステージクリアならゲームクリア
+    if (currentStage >= maxStages) {
+        gameWin();
+    }
+}
+
 // ゲームクリア
 function gameWin() {
     gameRunning = false;
     gameState = 'gameWin';
 }
 
+// 次のステージへ進む
+function nextStage() {
+    currentStage++;
+    
+    // パドルの幅を10%ずつ減らす
+    paddle.width = paddle.initialWidth * (1 - (currentStage - 1) * 0.1);
+    paddle.x = canvas.width / 2 - paddle.width / 2;
+    
+    // ブロックを再生成
+    createBlocks();
+    resetBall();
+    gameState = 'ready';
+    gameRunning = false;
+    updateDisplay();
+}
+
 // ゲーム再開
 function restartGame() {
     score = 0;
     lives = 3;
+    currentStage = 1;
     gameRunning = false;
     gameState = 'ready';
+    
+    // パドルの幅を初期値に戻す
+    paddle.width = paddle.initialWidth;
+    paddle.x = canvas.width / 2 - paddle.width / 2;
+    
     createBlocks();
     resetBall();
     updateDisplay();
@@ -341,9 +398,14 @@ document.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (e.code === 'Space') {
         e.preventDefault();
-        gameRunning = !gameRunning;
-        if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
-            gameState = 'playing';
+        
+        if (gameState === 'stageClear') {
+            nextStage();
+        } else {
+            gameRunning = !gameRunning;
+            if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
+                gameState = 'playing';
+            }
         }
     }
 });
@@ -365,9 +427,13 @@ canvas.addEventListener('mousemove', (e) => {
 
 // マウスクリックでゲーム開始/一時停止
 canvas.addEventListener('click', (e) => {
-    gameRunning = !gameRunning;
-    if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
-        gameState = 'playing';
+    if (gameState === 'stageClear') {
+        nextStage();
+    } else {
+        gameRunning = !gameRunning;
+        if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
+            gameState = 'playing';
+        }
     }
 });
 
