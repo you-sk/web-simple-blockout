@@ -782,12 +782,16 @@ document.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (e.code === 'Space') {
         e.preventDefault();
-        
+
         if (gameState === 'stageClear') {
             nextStage();
+        } else if (gameState === 'gameOver' || gameState === 'gameWin') {
+            // ゲームオーバーまたはゲームクリア時はスペースキーを押しても何もしない
+            // 再開ボタンを使用する必要がある
+            return;
         } else {
             gameRunning = !gameRunning;
-            if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
+            if (gameRunning && gameState === 'ready') {
                 gameState = 'playing';
             }
         }
@@ -813,9 +817,13 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('click', (e) => {
     if (gameState === 'stageClear') {
         nextStage();
+    } else if (gameState === 'gameOver' || gameState === 'gameWin') {
+        // ゲームオーバーまたはゲームクリア時はクリックしても何もしない
+        // 再開ボタンを使用する必要がある
+        return;
     } else {
         gameRunning = !gameRunning;
-        if (gameRunning && (gameState === 'ready' || gameState === 'gameOver' || gameState === 'gameWin')) {
+        if (gameRunning && gameState === 'ready') {
             gameState = 'playing';
         }
     }
